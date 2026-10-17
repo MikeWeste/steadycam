@@ -456,6 +456,10 @@ final class CameraEngine {
     private void close(){++generation;++sessionNumber;opening=false;closeSession();if(device!=null){device.close();device=null;}locked=false;focusRegion=null;focusActive=false;photoSaving=false;notifiedAf=-1;state(State.CLOSED);}
     void report(java.util.function.Consumer<String> callback){h.post(()->{
         StringBuilder b=new StringBuilder("SteadyCam 13T 2.1\n").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append(" / Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n\n");
+        try{CameraCharacteristics main=manager.getCameraCharacteristics(id==null?"0":id);
+            b.append("=== КЛЮЧИ XIAOMI, КОТОРЫЕ МОЖНО ЗАДАТЬ В ЗАПРОСЕ (камера ").append(id==null?"0":id).append(") ===\n");
+            for(CaptureRequest.Key<?> k:main.getAvailableCaptureRequestKeys()){String n=k.getName();if(!n.startsWith("android."))b.append(n).append('\n');}
+            b.append("=== КОНЕЦ ===\n\n");}catch(Exception e){b.append("Ключи недоступны: ").append(e.getMessage()).append("\n\n");}
         try{for(String cid:manager.getCameraIdList()){
             CameraCharacteristics c=manager.getCameraCharacteristics(cid);StreamConfigurationMap map=c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             b.append(cameraName(cid)).append("\nУровень Camera2: ").append(c.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)).append("\nAE FPS: ").append(Arrays.toString(c.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES))).append("\n");
