@@ -462,6 +462,8 @@ final class CameraEngine {
             if(map!=null){Size[] ss=map.getOutputSizes(MediaRecorder.class);if(ss!=null)for(Size s:ss)if(s.getWidth()>=1280)b.append("Record ").append(s).append(" minFrame ").append(duration(map,MediaRecorder.class,s)).append(" ns\n");
                 try{for(Size s:map.getHighSpeedVideoSizes())b.append("High-speed ").append(s).append(' ').append(Arrays.toString(map.getHighSpeedVideoFpsRangesFor(s))).append(" (отдельный режим, не обычная запись 60)\n");}catch(Exception ignored){}
             }
+            try{b.append("Вендорные ключи запроса:\n");for(CaptureRequest.Key<?> k:c.getAvailableCaptureRequestKeys()){String n=k.getName();if(!n.startsWith("android."))b.append("  ").append(n).append('\n');}
+                b.append("Вендорные ключи результата:\n");for(CaptureResult.Key<?> k:c.getAvailableCaptureResultKeys()){String n=k.getName();if(!n.startsWith("android."))b.append("  ").append(n).append('\n');}}catch(Exception ignored){}
             b.append("EIS: ").append(Arrays.toString(c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES))).append(" OIS: ").append(Arrays.toString(c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION))).append("\n\n");
         }}catch(Exception e){b.append(e.getMessage());}
         b.append("Выбрана камера: ").append(id).append(" / ").append(mime).append("\nДоступные режимы:\n");for(Mode m:modes)b.append(m.label()).append("; preview ").append(m.preview).append("; AE ").append(m.range).append('\n');
