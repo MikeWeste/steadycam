@@ -59,6 +59,7 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
     private float currentZoom = 1, evFloat = 0;
     private String lastAnalysis = "";
     private long lastLowFpsWarning = 0;
+    private int lastPw = 0, lastPh = 0;
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -575,13 +576,15 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
                 "Кодек: " + (info != null && info.mime.equals("video/hevc") ? "HEVC" : "H.264"),
                 "Выбрать доступную камеру",
                 "Диагностика камеры и 60 FPS",
+                "Эксперимент: принудительно 60 к/с: " + (getSharedPreferences("camera_v2", MODE_PRIVATE).getBoolean("force60", false) ? "вкл" : "выкл"),
                 "О приложении"}, (d, w) -> {
             if (w == 0) { overlay.grid = !overlay.grid; prefs.edit().putBoolean("grid", overlay.grid).apply(); overlay.invalidate(); }
             if (w == 1) { overlay.level = !overlay.level; prefs.edit().putBoolean("level", overlay.level).apply(); overlay.invalidate(); }
             if (w == 2) new AlertDialog.Builder(this).setTitle("Кодек видео").setItems(new String[]{"H.264 — совместимость", "HEVC — меньше размер"}, (dd, i) -> engine.codec(i == 0 ? "video/avc" : "video/hevc")).show();
             if (w == 3 && info != null) new AlertDialog.Builder(this).setTitle("Камеры, доступные Android").setItems(info.names.toArray(new String[0]), (dd, i) -> engine.camera(info.ids.get(i))).show();
             if (w == 4) diagnostics();
-            if (w == 5) new AlertDialog.Builder(this).setTitle("SteadyCam 13T · 2.1")
+            if (w == 5) engine.force60(!getSharedPreferences("camera_v2", MODE_PRIVATE).getBoolean("force60", false));
+            if (w == 6) new AlertDialog.Builder(this).setTitle("SteadyCam 13T · 2.1")
                     .setMessage("Нативная Camera2-камера. Фото JPEG, видео MP4, H.264/HEVC.\n\nСъёмка сохраняется в DCIM/SteadyCam.\n\nКасание — фокус, удержание — AF/AE LOCK, после касания свайп вверх/вниз меняет яркость. Свайп вбок переключает ВИДЕО/ФОТО. Кнопки громкости — затвор.\n\nДоступ к фирменным режимам Xiaomi зависит от прошивки. HDR, ночная многокадровая обработка и кинорежим не имитируются. FPS MP4 измеряется по временным меткам, без поиска повторяющихся изображений.\n\n" + lastAnalysis)
                     .setPositiveButton("Понятно", null).show();
         }).show();
@@ -713,25 +716,33 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
     @Override public void onInfo(CameraEngine.Info value) {
         if (destroyed) return;
         boolean modeChanged = info != null && info.video != value.video;
+        boolean sizeChanged = value.previewWidth != lastPw || value.previewHeight != lastPh;
+        lastPw = value.previewWidth; lastPh = value.previewHeight;
         info = value;
         if (!scaling) { currentZoom = value.zoom; }
         if (!evDragStarted) { evFloat = value.ev; lastEvSent = value.ev; }
-        if (modeChanged) { overlay.focusX = -1; blinkMode(); }
+        if (modeChanged) overlay.focusX = -1;
+        if (modeChanged || sizeChanged) coverPreview();
         surface.getHolder().setFixedSize(value.previewWidth, value.previewHeight);
         updateUi();
     }
 
-    private void blinkMode() {
+    /** Hide the stretched old frame while the camera session is rebuilt for a new preview size. */
+    private void coverPreview() {
         blink.animate().cancel();
-        blink.setAlpha(.55f);
-        blink.animate().alpha(0f).setDuration(260).start();
+        blink.setAlpha(1f);
+        ui.removeCallbacks(uncover);
+        ui.postDelayed(uncover, 1800);
     }
+
+    private final Runnable uncover = () -> blink.animate().alpha(0f).setDuration(160).start();
 
     @Override public void onState(CameraEngine.State value) {
         if (destroyed) return;
         state = value;
         if (value == CameraEngine.State.PREPARING) setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LOCKED);
         else if (value == CameraEngine.State.READY || value == CameraEngine.State.CLOSED) setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        if (value == CameraEngine.State.READY && blink.getAlpha() > .9f) { ui.removeCallbacks(uncover); ui.postDelayed(uncover, 200); }
         updateUi();
     }
 

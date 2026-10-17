@@ -132,6 +132,7 @@ final class CameraEngine {
     void exposure(int value) { h.post(()->{ev=Math.max(evMin,Math.min(evMax,value));if(locked){locked=false;publish();}refresh();}); }
     void stabilization(String value) { h.post(()->{if(!configurable())return;stabilization=value;sessionStabilizationOff=false;stabilizationRetry=false;prefs.edit().putString("stabilization",value).apply();configure(false);publish();}); }
     void codec(String value) { h.post(()->{if(!configurable())return;mime=value;discover();prefs.edit().putString("mime",value).apply();configure(false);publish();}); }
+    void force60(boolean value) { h.post(()->{if(!configurable())return;prefs.edit().putBoolean("force60",value).apply();discover();configure(false);publish();message(value?"Эксперимент: 60 к/с запрашивается принудительно. Проверь счётчик и итог MP4":"Принудительный 60 к/с выключен");}); }
     void highPhoto(boolean value) { h.post(()->{if(!configurable())return;highPhoto=value;prefs.edit().putBoolean("highPhoto",value).apply();if(!video)configure(false);publish();}); }
     boolean highPhoto() { return highPhoto; }
     void flash(int value) { h.post(()->{if(!configurable()||!flashAvailable)return;flashMode=value;prefs.edit().putInt("flashMode",value).apply();refresh();publish();}); }
@@ -196,12 +197,12 @@ final class CameraEngine {
         for(int[] wh:new int[][]{{1280,720},{1920,1080},{3840,2160}})for(int fps:new int[]{30,60}) {
             Size s=new Size(wh[0],wh[1]);String key=s+"@"+fps;String reason=null;int index=CameraPolicy.bestRange(raw,fps);
             if(sizes==null||!Arrays.asList(sizes).contains(s))reason="Камера не отдаёт это разрешение в Camera2";
-            else if(index<0)reason="Прошивка не объявила диапазон до "+fps+" к/с в обычной Camera2-сессии";
+            else if(index<0&&!(fps==60&&prefs.getBoolean("force60",false)))reason="Прошивка не объявила диапазон до "+fps+" к/с в обычной Camera2-сессии";
             else if(!CameraPolicy.supportsRate(duration(map,MediaRecorder.class,s),fps))reason="Поток записи ограничен временем кадра: "+duration(map,MediaRecorder.class,s)+" нс";
             else if(!encoderSupports(s,fps))reason="Нет доступного "+(mime.equals("video/avc")?"H.264":"HEVC")+"-кодировщика для этого режима";
             Size p=reason==null?choosePreview(map,s,fps):null;
             if(reason==null&&p==null)reason="Нет совместимого потока предпросмотра для "+fps+" к/с";
-            if(reason!=null)rejected.put(key,reason);else modes.add(new Mode(s,p,fps,ranges[index]));
+            if(reason!=null)rejected.put(key,reason);else modes.add(new Mode(s,p,fps,index>=0?ranges[index]:Range.create(60,60)));
         }
         for(Mode m:modes)if(m.key().equals(wanted))selected=m;
         if(selected==null)for(Mode m:modes)if(m.key().equals("1920x1080@30"))selected=m;
